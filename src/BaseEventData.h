@@ -29,9 +29,9 @@ public:
 
 	virtual const char* getName() const = 0;
 	virtual EventType getTypeId() const = 0;
-	float getTimeStamp() { return mTimeStamp; }
+	float getTimeStamp() const { return mTimeStamp; }
 	
-	bool isHandled() { return mIsHandled; }
+	bool isHandled() const { return mIsHandled; }
 	void setIsHandled( bool handled = true ) { mIsHandled = handled; }
 	
 	virtual void serialize( cinder::Buffer &streamOut ) {}

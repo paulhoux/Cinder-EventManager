@@ -38,7 +38,7 @@
 
 #include "EventManager.h"
 #include <iostream>
-#include <assert.h>
+#include <cassert>
 #include "cinder/Log.h"
 
 //#define LOG_EVENT( stream )	CI_LOG_I( stream )
@@ -46,89 +46,90 @@
 
 using namespace std;
 	
-EventManager::EventManager( const std::string &name, bool setAsGlobal )
-: EventManagerBase( name, setAsGlobal ), mActiveQueue( 0 ), mFiringEvent( false )
+EventManager::EventManager( std::string name, bool setAsGlobal )
+: EventManagerBase( std::move( name ), setAsGlobal ), mActiveQueue( 0 ), mFiringEvent( false )
 {
 	
 }
 	
-EventManagerRef EventManager::create( const std::string &name, bool setAsGlobal )
+EventManagerRef EventManager::create( std::string name, bool setAsGlobal )
 {
-	return EventManagerRef( new EventManager( name, setAsGlobal ) );
+	return EventManagerRef( new EventManager( std::move( name ), setAsGlobal ) );
 }
 	
 EventManager::~EventManager()
 {
-	LOG_EVENT("Cleaning up event manager");
+	LOG_EVENT( "Cleaning up event manager" );
 	mEventListeners.clear();
 	mQueues[0].clear();
 	mQueues[1].clear();
-	LOG_EVENT("Removing all threaded events");
+	LOG_EVENT( "Removing all threaded events");
 	std::lock_guard<std::mutex> lock( mThreadedEventListenerMutex );
 	mThreadedEventListeners.clear();
-	LOG_EVENT("Removed ALL EVENT LISTENERS");
+	LOG_EVENT( "Removed ALL EVENT LISTENERS" );
 }
 	
-bool EventManager::addListener( const EventListenerDelegate &eventDelegate, const EventType &type )
+bool EventManager::addListener( EventListenerDelegate eventDelegate, EventType type )
 {
-	LOG_EVENT("Attempting to add delegate function for event type: " + to_string( type ));
+	LOG_EVENT( "Attempting to add delegate function for event type: " + to_string( type ) );
 	if( mFiringEvent ) {
-		mAddAfter.emplace_back( type, eventDelegate );
+		mAddAfter.emplace_back( type, std::move( eventDelegate ) );
 	}
 	else {
-		auto & eventDelegateList = mEventListeners[type];
+		auto &eventDelegateList = mEventListeners[type];
 		auto listenIt = eventDelegateList.begin();
-		auto end = eventDelegateList.end();
-		while ( listenIt != end ) {
-			if ( eventDelegate == (*listenIt) ) {
-				LOG_EVENT("Attempting to double-register a delegate");
+		const auto end = eventDelegateList.end();
+		while( listenIt != end ) {
+			if( eventDelegate == (*listenIt) ) {
+				LOG_EVENT( "Attempting to double-register a delegate" );
 				return false;
 			}
 			++listenIt;
 		}
-		eventDelegateList.push_back(eventDelegate);
+		eventDelegateList.emplace_back( std::move( eventDelegate ) );
 	}
-	LOG_EVENT("Successfully added delegate for event type: " + to_string( type ) );
+	LOG_EVENT( "Successfully added delegate for event type: " + to_string( type ) );
+
 	return true;
 }
 	
-bool EventManager::removeListener( const EventListenerDelegate &eventDelegate, const EventType &type )
+bool EventManager::removeListener( EventListenerDelegate eventDelegate, EventType type )
 {
-	LOG_EVENT("Attempting to remove delegate function from event type: " + to_string( type ) );
-	bool success = false;
+	LOG_EVENT( "Attempting to remove delegate function from event type: " + to_string( type ) );
+	auto success = false;
 	
 	if( mFiringEvent ) {
-		mRemoveAfter.emplace_back( type, eventDelegate );
+		mRemoveAfter.emplace_back( type, std::move( eventDelegate ) );
 	}
 	else {
-		auto found = mEventListeners.find(type);
+		auto found = mEventListeners.find( type );
 		if( found != mEventListeners.end() ) {
-			auto & listeners = found->second;
+			auto &listeners = found->second;
 			for( auto listIt = listeners.begin(); listIt != listeners.end(); ++listIt ) {
 				if( eventDelegate == (*listIt) ) {
-					listeners.erase(listIt);
-					LOG_EVENT("Successfully removed delegate function from event type: ");
+					listeners.erase( listIt );
+					LOG_EVENT( "Successfully removed delegate function from event type: " );
 					success = true;
 					break;
 				}
 			}
 		}
 	}
+
 	return success;
 }
 	
-bool EventManager::triggerEvent( const EventDataRef &event )
+bool EventManager::triggerEvent( EventDataRef event )
 {
 	LOG_EVENT( "Attempting to trigger event: " + std::string( event->getName() ) );
 	auto processed = false;
-	auto originalFiringEvent = mFiringEvent;
+	const auto originalFiringEvent = mFiringEvent;
 	mFiringEvent = true;
 
-	auto found = mEventListeners.find( event->getTypeId() );
+	const auto found = mEventListeners.find( event->getTypeId() );
 	if( found != mEventListeners.end() ) {
-		const auto & eventListenerList = found->second;
-		for( auto listIt = eventListenerList.begin(); listIt != eventListenerList.end(); ++listIt ) {
-			auto& listener = ( *listIt );
+		const auto &eventListenerList = found->second;
+		for( auto &listener : eventListenerList ) {
 			LOG_EVENT( "Sending event " + std::string( event->getName() ) + " to delegate." );
 			listener( event );
 			processed = true;
@@ -142,45 +143,46 @@ bool EventManager::triggerEvent( const EventDataRef &event )
 	return processed;
 }
 	
-bool EventManager::queueEvent( const EventDataRef &event )
+bool EventManager::queueEvent( EventDataRef event )
 {
-	assert(mActiveQueue < NUM_QUEUES);
+	assert( mActiveQueue < NUM_QUEUES );
 	
 	// make sure the event is valid
-	if( !event ) {
-		LOG_EVENT("Invalid event in queueEvent");
+	if( ! event ) {
+		LOG_EVENT( "Invalid event in queueEvent" );
 	}
 	
-	LOG_EVENT("Attempting to queue event: " + std::string( event->getName() ) );
-	
-	auto found = mEventListeners.find( event->getTypeId() );
+	LOG_EVENT( "Attempting to queue event: " + std::string( event->getName() ) );
+
+	const auto found = mEventListeners.find( event->getTypeId() );
 	if( found != mEventListeners.end() ) {
-		mQueues[mActiveQueue].push_back(event);
-		LOG_EVENT("Successfully queued event: " + std::string( event->getName() ) );
+		mQueues[mActiveQueue].emplace_back( std::move( event ) );
+		LOG_EVENT("Successfully queued event: " + std::string( mQueues[mActiveQueue].back()->getName() ) );
+
 		return true;
 	}
-	else {
-		static bool processNotify = false;
-		if( !processNotify ) {
-			LOG_EVENT( "Skipping event since there are no delegates to receive it: " + std::string( event->getName() ) );
-			processNotify = true;
-		}
-		return false;
+
+	static auto processNotify = false;
+	if( ! processNotify ) {
+		LOG_EVENT( "Skipping event since there are no delegates to receive it: " + std::string( event->getName() ) );
+		processNotify = true;
 	}
+	
+	return false;
 }
 	
-bool EventManager::abortEvent( const EventType &type, bool allOfType )
+bool EventManager::abortEvent( EventType type, bool allOfType )
 {
-	assert(mActiveQueue >= 0);
-	assert(mActiveQueue > NUM_QUEUES);
+	assert( mActiveQueue >= 0 );
+	assert( mActiveQueue > NUM_QUEUES );
 	
-	bool success = false;
-	auto found = mEventListeners.find( type );
+	auto success = false;
+	const auto found = mEventListeners.find( type );
 	
 	if( found != mEventListeners.end() ) {
 		auto & eventQueue = mQueues[mActiveQueue];
 		auto eventIt = eventQueue.begin();
-		auto end = eventQueue.end();
+		const auto end = eventQueue.end();
 		while( eventIt != end ) {
 			
 			if( (*eventIt)->getTypeId() == type ) {
@@ -195,37 +197,39 @@ bool EventManager::abortEvent( const EventType &type, bool allOfType )
 	return success;
 }
 	
-bool EventManager::addThreadedListener( const EventListenerDelegate &eventDelegate, const EventType &type )
+bool EventManager::addThreadedListener( EventListenerDelegate eventDelegate, EventType type )
 {
 	std::lock_guard<std::mutex> lock( mThreadedEventListenerMutex );
 	
-	auto & eventDelegateList = mThreadedEventListeners[type];
-	for ( auto & delegate : eventDelegateList ) {
-		if ( eventDelegate == delegate ) {
+	auto &eventDelegateList = mThreadedEventListeners[type];
+	for( auto &delegate : eventDelegateList ) {
+		if( eventDelegate == delegate ) {
 			LOG_EVENT("Attempting to double-register a delegate");
 			return false;
 		}
 	}
-	eventDelegateList.push_back(eventDelegate);
+	eventDelegateList.emplace_back( std::move( eventDelegate ) );
 	LOG_EVENT("Successfully added delegate for event type: " + to_string( type ) );
+
 	return true;
 }
 
-bool EventManager::removeThreadedListener( const EventListenerDelegate &eventDelegate, const EventType &type )
+bool EventManager::removeThreadedListener( EventListenerDelegate eventDelegate, EventType type )
 {
 	std::lock_guard<std::mutex> lock( mThreadedEventListenerMutex );
 	
-	auto found = mThreadedEventListeners.find(type);
+	auto found = mThreadedEventListeners.find( type );
 	if( found != mThreadedEventListeners.end() ) {
-		auto & listeners = found->second;
+		auto &listeners = found->second;
 		for( auto listIt = listeners.begin(); listIt != listeners.end(); ++listIt ) {
 			if( eventDelegate == (*listIt) ) {
-				listeners.erase(listIt);
+				listeners.erase( listIt );
 				LOG_EVENT("Successfully removed delegate function from event type: " << to_string( type ) );
 				return true;
 			}
 		}
 	}
+
 	return false;
 }
 
@@ -235,21 +239,22 @@ void EventManager::removeAllThreadedListeners()
 	mThreadedEventListeners.clear();
 }
 
-bool EventManager::triggerThreadedEvent( const EventDataRef &event )
+bool EventManager::triggerThreadedEvent( EventDataRef event )
 {
 	std::lock_guard<std::mutex> lock( mThreadedEventListenerMutex );
 	
-	bool processed = false;
-	auto found = mThreadedEventListeners.find(event->getTypeId());
+	auto processed = false;
+	const auto found = mThreadedEventListeners.find( event->getTypeId() );
 	if( found != mThreadedEventListeners.end() ) {
-		const auto & eventListenerList = found->second;
-		for( auto & listener : eventListenerList ) {
+		const auto &eventListenerList = found->second;
+		for( auto &listener : eventListenerList ) {
 			listener( event );
 			processed = true;
 		}
 	}
 	if( ! processed )
 		LOG_EVENT( "Tried triggering MultiThreaded Event without a listener" );
+
 	return processed;
 }
 
@@ -258,7 +263,7 @@ void EventManager::consumeAfterListeners()
 	if( ! mAddAfter.empty() ) {
 		std::sort( mAddAfter.begin(), mAddAfter.end(),
 				  []( const pair<EventType, EventListenerDelegate> &a,
-		    const pair<EventType, EventListenerDelegate> &b ){
+					  const pair<EventType, EventListenerDelegate> &b ) {
 					  return a.first < b.first;
 				  });
 		for( auto &removeEvent : mAddAfter )
@@ -268,7 +273,7 @@ void EventManager::consumeAfterListeners()
 	if( ! mRemoveAfter.empty() ) {
 		std::sort( mRemoveAfter.begin(), mRemoveAfter.end(),
 				  []( const pair<EventType, EventListenerDelegate> &a,
-		    const pair<EventType, EventListenerDelegate> &b ){
+					  const pair<EventType, EventListenerDelegate> &b ) {
 					  return a.first < b.first;
 				  });
 		for( auto &removeEvent : mRemoveAfter )
@@ -281,39 +286,39 @@ bool EventManager::update( uint64_t maxMillis )
 {
 	static uint64_t currMs = 0;
 	currMs = (1.0 / 60.0) * 1000;
-	uint64_t maxMs = (( maxMillis == EventManager::kINFINITE ) ? (EventManager::kINFINITE) : (currMs + maxMillis) );
+	const auto maxMs = maxMillis == EventManager::kINFINITE ? EventManager::kINFINITE : currMs + maxMillis;
 	
 	mFiringEvent = true;
-	
-	int queueToProcess = mActiveQueue;
-	mActiveQueue = (mActiveQueue + 1) % NUM_QUEUES;
+
+	const int queueToProcess = mActiveQueue;
+	mActiveQueue = ( mActiveQueue + 1 ) % NUM_QUEUES;
 	mQueues[mActiveQueue].clear();
 	
-	static bool processNotify = false;
+	static auto processNotify = false;
 	if( ! processNotify ) {
-		LOG_EVENT("Processing Event Queue " + to_string(queueToProcess) + "; " + to_string(mQueues[queueToProcess].size()) + " events to process");
+		LOG_EVENT( "Processing Event Queue " + to_string( queueToProcess ) + "; " + to_string( mQueues[queueToProcess].size() ) + " events to process" );
 		processNotify = true;
 	}
 	
-	while (!mQueues[queueToProcess].empty()) {
-		auto event = mQueues[queueToProcess].front();
+	while( ! mQueues[queueToProcess].empty() ) {
+		const auto event = mQueues[queueToProcess].front();
 		mQueues[queueToProcess].pop_front();
-		LOG_EVENT("\t\tProcessing Event " + std::string(event->getName()));
+		LOG_EVENT( "\t\tProcessing Event " + std::string( event->getName() ) );
 		
-		const auto & eventType = event->getTypeId();
-		
-		auto found = mEventListeners.find(eventType);
-		if (found != mEventListeners.end()) {
-			const auto & eventListeners = found->second;
-			LOG_EVENT("\t\tFound " + to_string(eventListeners.size()) + " delegates");
+		const auto &eventType = event->getTypeId();
+
+		const auto found = mEventListeners.find( eventType );
+		if( found != mEventListeners.end() ) {
+			const auto &eventListeners = found->second;
+			LOG_EVENT( "\t\tFound " + to_string( eventListeners.size() ) + " delegates" );
 
 			auto listIt = eventListeners.begin();
-			auto end = eventListeners.end();
-			while (listIt != end) {
-				auto listener = (*listIt);
-				LOG_EVENT("\t\tSending Event " + std::string(event->getName()) + " to delegate");
-				listener(event);
-				listIt++;
+			const auto end = eventListeners.end();
+			while( listIt != end ) {
+				const auto listener = (*listIt);
+				LOG_EVENT( "\t\tSending Event " + std::string( event->getName() ) + " to delegate" );
+				listener( event );
+				++listIt;
 			}
 		}
 		
@@ -323,13 +328,13 @@ bool EventManager::update( uint64_t maxMillis )
 			break;
 		}
 	}
-	
-	bool queueFlushed = mQueues[queueToProcess].empty();
+
+	const auto queueFlushed = mQueues[queueToProcess].empty();
 	if( ! queueFlushed ) {
 		while( ! mQueues[queueToProcess].empty() ) {
 			auto event = mQueues[queueToProcess].back();
 			mQueues[queueToProcess].pop_back();
-			mQueues[mActiveQueue].push_front(event);
+			mQueues[mActiveQueue].emplace_front( std::move( event ) );
 		}
 	}
 	

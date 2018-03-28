@@ -46,7 +46,7 @@ EventManagerBase* EventManagerBase::get()
 	return kEventManager;
 }
 	
-EventManagerBase::EventManagerBase( const std::string &name, bool setAsGlobal )
+EventManagerBase::EventManagerBase( std::string name, bool setAsGlobal )
 {
 	if ( setAsGlobal ) {
 		if ( kEventManager ) {

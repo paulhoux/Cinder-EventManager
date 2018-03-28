@@ -62,27 +62,26 @@ class EventManager : public EventManagerBase {
 	using EventQueue		= std::deque<EventDataRef>;
 	
 public:
-	
-	static EventManagerRef create( const std::string &name, bool setAsGlobal );
+	static EventManagerRef create( std::string name, bool setAsGlobal );
 	
 	virtual ~EventManager();
 	
-	virtual bool addListener( const EventListenerDelegate &eventDelegate, const EventType &type ) override;
-	virtual bool removeListener( const EventListenerDelegate &eventDelegate, const EventType &type ) override;
+	virtual bool addListener( EventListenerDelegate eventDelegate, EventType type ) override;
+	virtual bool removeListener( EventListenerDelegate eventDelegate, EventType type ) override;
 	
-	virtual bool triggerEvent( const EventDataRef &event ) override;
-	virtual bool queueEvent( const EventDataRef &event ) override;
-	virtual bool abortEvent( const EventType &type, bool allOfType = false ) override;
+	virtual bool triggerEvent( EventDataRef event ) override;
+	virtual bool queueEvent( EventDataRef event ) override;
+	virtual bool abortEvent( EventType type, bool allOfType ) override;
 	
-	virtual bool addThreadedListener( const EventListenerDelegate &eventDelegate, const EventType &type ) override;
-	virtual bool removeThreadedListener( const EventListenerDelegate &eventDelegate, const EventType &type ) override;
+	virtual bool addThreadedListener( EventListenerDelegate eventDelegate, EventType type ) override;
+	virtual bool removeThreadedListener( EventListenerDelegate eventDelegate, EventType type ) override;
 	virtual void removeAllThreadedListeners() override;
-	virtual bool triggerThreadedEvent( const EventDataRef &event ) override;
+	virtual bool triggerThreadedEvent( EventDataRef event ) override;
 	
 	virtual bool update( uint64_t maxMillis = kINFINITE ) override;
 
 private:
-	explicit EventManager( const std::string &name, bool setAsGlobal );
+	explicit EventManager( std::string name, bool setAsGlobal );
 	
 	void consumeAfterListeners();
 	
