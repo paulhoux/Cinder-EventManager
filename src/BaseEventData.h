@@ -25,7 +25,7 @@ using EventType = uint64_t;
 class EventData {
 public:
 	explicit EventData( float timestamp = 0.0f ) : mTimeStamp( timestamp ), mIsHandled( false ) {}
-	virtual ~EventData() {}
+	virtual ~EventData() = default;
 
 	virtual const char* getName() const = 0;
 	virtual EventType getTypeId() const = 0;

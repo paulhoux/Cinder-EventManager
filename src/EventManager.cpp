@@ -46,15 +46,12 @@
 
 using namespace std;
 	
-EventManager::EventManager( std::string name, bool setAsGlobal )
-: EventManagerBase( std::move( name ), setAsGlobal ), mActiveQueue( 0 ), mFiringEvent( false )
+EventManager::EventManager( std::string name, bool setAsGlobal ) : 
+	EventManagerBase( std::move( name ), setAsGlobal ), 
+	mActiveQueue( 0 ), 
+	mFiringEvent( false )
 {
-	
-}
-	
-EventManagerRef EventManager::create( std::string name, bool setAsGlobal )
-{
-	return EventManagerRef( new EventManager( std::move( name ), setAsGlobal ) );
+	LOG_EVENT( "Creating event manager" );
 }
 	
 EventManager::~EventManager()
@@ -71,7 +68,8 @@ EventManager::~EventManager()
 	
 bool EventManager::addListener( EventListenerDelegate eventDelegate, EventType type )
 {
-	LOG_EVENT( "Attempting to add delegate function for event type: " + to_string( type ) );
+	LOG_EVENT( "ADDING delegate function for event type: " + to_string( type ) );
+
 	if( mFiringEvent ) {
 		mAddAfter.emplace_back( type, std::move( eventDelegate ) );
 	}
@@ -81,21 +79,22 @@ bool EventManager::addListener( EventListenerDelegate eventDelegate, EventType t
 		const auto end = eventDelegateList.end();
 		while( listenIt != end ) {
 			if( eventDelegate == (*listenIt) ) {
-				LOG_EVENT( "Attempting to double-register a delegate" );
+				LOG_EVENT( "WARNING: Attempting to double-register a delegate" );
 				return false;
 			}
 			++listenIt;
 		}
 		eventDelegateList.emplace_back( std::move( eventDelegate ) );
 	}
-	LOG_EVENT( "Successfully added delegate for event type: " + to_string( type ) );
+
+	LOG_EVENT( "ADDED delegate for event type: " + to_string( type ) );
 
 	return true;
 }
 	
 bool EventManager::removeListener( EventListenerDelegate eventDelegate, EventType type )
 {
-	LOG_EVENT( "Attempting to remove delegate function from event type: " + to_string( type ) );
+	LOG_EVENT( "REMOVING delegate function from event type: " + to_string( type ) );
 	auto success = false;
 	
 	if( mFiringEvent ) {
@@ -108,7 +107,7 @@ bool EventManager::removeListener( EventListenerDelegate eventDelegate, EventTyp
 			for( auto listIt = listeners.begin(); listIt != listeners.end(); ++listIt ) {
 				if( eventDelegate == (*listIt) ) {
 					listeners.erase( listIt );
-					LOG_EVENT( "Successfully removed delegate function from event type: " );
+					LOG_EVENT( "REMOVED delegate function from event type: " );
 					success = true;
 					break;
 				}
@@ -121,7 +120,7 @@ bool EventManager::removeListener( EventListenerDelegate eventDelegate, EventTyp
 	
 bool EventManager::triggerEvent( EventDataRef event )
 {
-	LOG_EVENT( "Attempting to trigger event: " + std::string( event->getName() ) );
+	LOG_EVENT( "TRIGGERING event: " + std::string( event->getName() ) );
 	auto processed = false;
 	const auto originalFiringEvent = mFiringEvent;
 	mFiringEvent = true;
@@ -130,7 +129,7 @@ bool EventManager::triggerEvent( EventDataRef event )
 	if( found != mEventListeners.end() ) {
 		const auto &eventListenerList = found->second;
 		for( auto &listener : eventListenerList ) {
-			LOG_EVENT( "Sending event " + std::string( event->getName() ) + " to delegate." );
+			LOG_EVENT( "SENDING event " + std::string( event->getName() ) + " to delegate." );
 			listener( event );
 			processed = true;
 		}
@@ -148,23 +147,22 @@ bool EventManager::queueEvent( EventDataRef event )
 	assert( mActiveQueue < NUM_QUEUES );
 	
 	// make sure the event is valid
-	if( ! event ) {
-		LOG_EVENT( "Invalid event in queueEvent" );
-	}
+	if( ! event )
+		LOG_EVENT( "WARNING: Invalid event in queueEvent" );
 	
-	LOG_EVENT( "Attempting to queue event: " + std::string( event->getName() ) );
+	LOG_EVENT( "QUEUEING event: " + std::string( event->getName() ) );
 
 	const auto found = mEventListeners.find( event->getTypeId() );
 	if( found != mEventListeners.end() ) {
 		mQueues[mActiveQueue].emplace_back( std::move( event ) );
-		LOG_EVENT("Successfully queued event: " + std::string( mQueues[mActiveQueue].back()->getName() ) );
+		LOG_EVENT( "QUEUED event: " + std::string( mQueues[mActiveQueue].back()->getName() ) );
 
 		return true;
 	}
 
 	static auto processNotify = false;
 	if( ! processNotify ) {
-		LOG_EVENT( "Skipping event since there are no delegates to receive it: " + std::string( event->getName() ) );
+		LOG_EVENT( "WARNING: Skipping event since there are no delegates to receive it: " + std::string( event->getName() ) );
 		processNotify = true;
 	}
 	
@@ -204,12 +202,13 @@ bool EventManager::addThreadedListener( EventListenerDelegate eventDelegate, Eve
 	auto &eventDelegateList = mThreadedEventListeners[type];
 	for( auto &delegate : eventDelegateList ) {
 		if( eventDelegate == delegate ) {
-			LOG_EVENT("Attempting to double-register a delegate");
+			LOG_EVENT( "WARNING: Attempting to double-register a delegate" );
 			return false;
 		}
 	}
+
 	eventDelegateList.emplace_back( std::move( eventDelegate ) );
-	LOG_EVENT("Successfully added delegate for event type: " + to_string( type ) );
+	LOG_EVENT( "ADDED delegate for event type: " + to_string( type ) );
 
 	return true;
 }
@@ -224,7 +223,7 @@ bool EventManager::removeThreadedListener( EventListenerDelegate eventDelegate, 
 		for( auto listIt = listeners.begin(); listIt != listeners.end(); ++listIt ) {
 			if( eventDelegate == (*listIt) ) {
 				listeners.erase( listIt );
-				LOG_EVENT("Successfully removed delegate function from event type: " << to_string( type ) );
+				LOG_EVENT( "REMOVED delegate function from event type: " << to_string( type ) );
 				return true;
 			}
 		}
@@ -252,8 +251,9 @@ bool EventManager::triggerThreadedEvent( EventDataRef event )
 			processed = true;
 		}
 	}
+
 	if( ! processed )
-		LOG_EVENT( "Tried triggering MultiThreaded Event without a listener" );
+		LOG_EVENT( "WARNING: Triggering ThreadedEvent without a listener" );
 
 	return processed;
 }
@@ -270,6 +270,7 @@ void EventManager::consumeAfterListeners()
 			addListener( removeEvent.second, removeEvent.first );
 		mAddAfter.clear();
 	}
+
 	if( ! mRemoveAfter.empty() ) {
 		std::sort( mRemoveAfter.begin(), mRemoveAfter.end(),
 				  []( const pair<EventType, EventListenerDelegate> &a,
@@ -324,7 +325,7 @@ bool EventManager::update( uint64_t maxMillis )
 		
 //		currMs = app::App::get()->getElapsedSeconds() * 1000;//Engine::getTickCount();
 		if( maxMillis != EventManager::kINFINITE && currMs >= maxMs ) {
-			LOG_EVENT("Aborting event processing; time ran out");
+			LOG_EVENT( "WARNING: Aborting event processing; time ran out" );
 			break;
 		}
 	}
