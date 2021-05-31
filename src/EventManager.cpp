@@ -37,12 +37,16 @@
 //========================================================================
 
 #include "EventManager.h"
-#include <iostream>
+
 #include <cassert>
 #include "cinder/Log.h"
 
+/// ============================================================================
+
 //#define LOG_EVENT( stream )	CI_LOG_I( stream )
 #define LOG_EVENT( stream )	((void)0)
+
+/// ============================================================================
 
 using namespace std;
 	
@@ -344,3 +348,5 @@ bool EventManager::update( uint64_t maxMillis )
 	
 	return queueFlushed;
 }
+
+/// ============================================================================

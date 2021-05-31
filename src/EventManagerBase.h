@@ -43,12 +43,18 @@
 #pragma GCC visibility push(default)
 #pragma warning( pop )
 
+/// ============================================================================
+
 #include <string>
 #include "BaseEventData.h"
 #include "FastDelegate.h"
 	
+/// ============================================================================
+
 using EventType				= uint64_t;
 using EventListenerDelegate = fastdelegate::FastDelegate1<EventDataRef, void>;
+
+/// ============================================================================
 
 class EventManagerBase {
 public:
@@ -56,6 +62,11 @@ public:
 	enum eConstants { kINFINITE = 0xffffffff };
 	explicit EventManagerBase( std::string name, bool setAsGlobal );
 	virtual ~EventManagerBase();
+
+	EventManagerBase( const EventManagerBase &other ) = default;
+	EventManagerBase &operator=( const EventManagerBase &other ) = default;
+	EventManagerBase( EventManagerBase &&other ) = default;
+	EventManagerBase &operator=( EventManagerBase &&other ) = default;
 	
 	//! Registers a delegate function that will get called when the event type is
 	//! triggered. Returns true if successful, false if not.
@@ -114,8 +125,12 @@ public:
 	virtual void removeAllThreadedListeners() = 0;
 };
 
+/// ============================================================================
+
 /* The classes below are exported */
 #pragma warning( push )
 #pragma warning( disable : 4068 )
 #pragma GCC visibility pop
 #pragma warning( pop )
+
+/// ============================================================================

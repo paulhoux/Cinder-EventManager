@@ -43,6 +43,8 @@
 #pragma GCC visibility push(default)
 #pragma warning( pop )
 
+/// ============================================================================
+
 #include "EventManagerBase.h"
 
 #include <vector>
@@ -52,10 +54,14 @@
 #include <list>
 #include <atomic>
 #include <mutex>
-	
+
+/// ============================================================================
+
 const uint32_t NUM_QUEUES = 2u;
 using EventManagerRef = std::shared_ptr<class EventManager>;
 	
+/// ============================================================================
+
 class EventManager : public EventManagerBase {
 	using EventListenerList = std::list<EventListenerDelegate>;
 	using EventListenerMap	= std::map<EventType, EventListenerList>;
@@ -69,6 +75,11 @@ public:
 
 	~EventManager() override;
 
+	EventManager( const EventManager &other ) = delete;
+	EventManager &operator=( const EventManager &other ) = delete;
+	EventManager( EventManager &&other ) = delete;
+	EventManager &operator=( EventManager &&other ) = delete;
+	
 	bool addListener( EventListenerDelegate eventDelegate, EventType type ) override;
 	bool removeListener( EventListenerDelegate eventDelegate, EventType type ) override;
 	
@@ -100,8 +111,12 @@ private:
 	bool			mFiringEvent;
 };
 
+/// ============================================================================
+
 /* The classes below are exported */
 #pragma warning( push )
 #pragma warning( disable : 4068 )
 #pragma GCC visibility pop
 #pragma warning( pop )
+
+/// ============================================================================

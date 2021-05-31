@@ -38,9 +38,13 @@
 
 #include "EventManagerBase.h"
 #include <iostream>
-	
+
+/// ============================================================================
+
 static EventManagerBase* kEventManager = nullptr;
 	
+/// ============================================================================
+
 EventManagerBase* EventManagerBase::get()
 {
 	return kEventManager;
@@ -65,3 +69,5 @@ EventManagerBase::~EventManagerBase()
 		delete tempManagerForDelete;
 	}*/
 }
+
+/// ============================================================================
