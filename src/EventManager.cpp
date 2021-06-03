@@ -38,8 +38,10 @@
 
 #include "EventManager.h"
 
+#include <cinder/Log.h>
+
 #include <cassert>
-#include "cinder/Log.h"
+#include <algorithm>
 
 /// ============================================================================
 
