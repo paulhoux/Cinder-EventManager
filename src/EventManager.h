@@ -72,13 +72,15 @@ public:
 	{
 		return EventManagerRef( new EventManager( std::move( name ), setAsGlobal ) );
 	}
-
-	~EventManager() override;
+	
+	~EventManager() override = default;;
 
 	EventManager( const EventManager &other ) = delete;
 	EventManager &operator=( const EventManager &other ) = delete;
 	EventManager( EventManager &&other ) = delete;
 	EventManager &operator=( EventManager &&other ) = delete;
+
+	void cleanup();
 	
 	bool addListener( EventListenerDelegate eventDelegate, EventType type ) override;
 	bool removeListener( EventListenerDelegate eventDelegate, EventType type ) override;
@@ -100,15 +102,19 @@ private:
 	void consumeAfterListeners();
 	
 	std::mutex							mThreadedEventListenerMutex;
-	EventListenerMap					mThreadedEventListeners;
+
+	EventListenerMap					mThreadedEventListeners,
+										mEventListeners;
 	
-	EventListenerMap					mEventListeners;
 	std::array<EventQueue, NUM_QUEUES>  mQueues;
-	uint32_t							mActiveQueue;
+	uint32_t							mActiveQueue {};
 	
 	using ListenerQueue = std::vector<std::pair<EventType, EventListenerDelegate>>;
-	ListenerQueue	mAddAfter, mRemoveAfter;
-	bool			mFiringEvent;
+	ListenerQueue	mAddAfter,
+					mRemoveAfter;
+	
+	bool			mFiringEvent {},
+					mCleanedUp {};
 };
 
 /// ============================================================================

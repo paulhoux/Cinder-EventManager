@@ -67,7 +67,7 @@ public:
 	EventManagerBase &operator=( const EventManagerBase &other ) = default;
 	EventManagerBase( EventManagerBase &&other ) = default;
 	EventManagerBase &operator=( EventManagerBase &&other ) = default;
-	
+
 	//! Registers a delegate function that will get called when the event type is
 	//! triggered. Returns true if successful, false if not.
 	virtual bool addListener( EventListenerDelegate eventDelegate, EventType type ) = 0;

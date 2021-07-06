@@ -53,25 +53,31 @@
 using namespace std;
 	
 EventManager::EventManager( std::string name, bool setAsGlobal ) : 
-	EventManagerBase( std::move( name ), setAsGlobal ), 
-	mActiveQueue( 0 ), 
-	mFiringEvent( false )
+	EventManagerBase( std::move( name ), setAsGlobal )
 {
-	LOG_EVENT( "Creating event manager" );
+	CI_LOG_I( "Creating event manager" );
 }
-	
-EventManager::~EventManager()
+
+void EventManager::cleanup()
 {
-	LOG_EVENT( "Cleaning up event manager" );
+	CI_LOG_I( "cleanup <<<<<<<<<<" );
+	
 	mEventListeners.clear();
 	mQueues[0].clear();
 	mQueues[1].clear();
-	LOG_EVENT( "Removing all threaded events");
-	std::lock_guard<std::mutex> lock( mThreadedEventListenerMutex );
-	mThreadedEventListeners.clear();
-	LOG_EVENT( "Removed ALL EVENT LISTENERS" );
-}
+	mAddAfter.clear();
+	mRemoveAfter.clear();
+	{
+		LOG_EVENT( "Removing all threaded events");
+		std::lock_guard lock( mThreadedEventListenerMutex );
+		mThreadedEventListeners.clear();
+	}
+
+	mCleanedUp = true;
 	
+	CI_LOG_I( ">>>>>>>>>> cleanup" );
+}
+
 bool EventManager::addListener( EventListenerDelegate eventDelegate, EventType type )
 {
 	LOG_EVENT( "ADDING delegate function for event type: " + to_string( type ) );
@@ -107,8 +113,7 @@ bool EventManager::removeListener( EventListenerDelegate eventDelegate, EventTyp
 		mRemoveAfter.emplace_back( type, std::move( eventDelegate ) );
 	}
 	else {
-		auto found = mEventListeners.find( type );
-		if( found != mEventListeners.end() ) {
+		if( auto found = mEventListeners.find( type ); found != mEventListeners.end() ) {
 			auto &listeners = found->second;
 			for( auto listIt = listeners.begin(); listIt != listeners.end(); ++listIt ) {
 				if( eventDelegate == (*listIt) ) {
@@ -131,8 +136,7 @@ bool EventManager::triggerEvent( EventDataRef event )
 	const auto originalFiringEvent = mFiringEvent;
 	mFiringEvent = true;
 
-	const auto found = mEventListeners.find( event->getTypeId() );
-	if( found != mEventListeners.end() ) {
+	if( const auto found = mEventListeners.find( event->getTypeId() ); found != mEventListeners.end() ) {
 		const auto &eventListenerList = found->second;
 		for( auto &listener : eventListenerList ) {
 			LOG_EVENT( "SENDING event " + std::string( event->getName() ) + " to delegate." );
@@ -158,16 +162,14 @@ bool EventManager::queueEvent( EventDataRef event )
 	
 	LOG_EVENT( "QUEUEING event: " + std::string( event->getName() ) );
 
-	const auto found = mEventListeners.find( event->getTypeId() );
-	if( found != mEventListeners.end() ) {
+	if( const auto found = mEventListeners.find( event->getTypeId() ); found != mEventListeners.end() ) {
 		mQueues[mActiveQueue].emplace_back( std::move( event ) );
 		LOG_EVENT( "QUEUED event: " + std::string( mQueues[mActiveQueue].back()->getName() ) );
 
 		return true;
 	}
 
-	static auto processNotify = false;
-	if( ! processNotify ) {
+	if( static auto processNotify = false; ! processNotify ) {
 		LOG_EVENT( "WARNING: Skipping event since there are no delegates to receive it: " + std::string( event->getName() ) );
 		processNotify = true;
 	}
@@ -181,9 +183,8 @@ bool EventManager::abortEvent( EventType type, bool allOfType )
 	assert( mActiveQueue > NUM_QUEUES );
 	
 	auto success = false;
-	const auto found = mEventListeners.find( type );
-	
-	if( found != mEventListeners.end() ) {
+
+	if( const auto found = mEventListeners.find( type ); found != mEventListeners.end() ) {
 		auto & eventQueue = mQueues[mActiveQueue];
 		auto eventIt = eventQueue.begin();
 		const auto end = eventQueue.end();
@@ -203,7 +204,7 @@ bool EventManager::abortEvent( EventType type, bool allOfType )
 	
 bool EventManager::addThreadedListener( EventListenerDelegate eventDelegate, EventType type )
 {
-	std::lock_guard<std::mutex> lock( mThreadedEventListenerMutex );
+	std::lock_guard lock( mThreadedEventListenerMutex );
 	
 	auto &eventDelegateList = mThreadedEventListeners[type];
 	for( auto &delegate : eventDelegateList ) {
@@ -221,10 +222,9 @@ bool EventManager::addThreadedListener( EventListenerDelegate eventDelegate, Eve
 
 bool EventManager::removeThreadedListener( EventListenerDelegate eventDelegate, EventType type )
 {
-	std::lock_guard<std::mutex> lock( mThreadedEventListenerMutex );
-	
-	auto found = mThreadedEventListeners.find( type );
-	if( found != mThreadedEventListeners.end() ) {
+	std::lock_guard lock( mThreadedEventListenerMutex );
+
+	if( auto found = mThreadedEventListeners.find( type ); found != mThreadedEventListeners.end() ) {
 		auto &listeners = found->second;
 		for( auto listIt = listeners.begin(); listIt != listeners.end(); ++listIt ) {
 			if( eventDelegate == (*listIt) ) {
@@ -240,17 +240,16 @@ bool EventManager::removeThreadedListener( EventListenerDelegate eventDelegate, 
 
 void EventManager::removeAllThreadedListeners()
 {
-	std::lock_guard<std::mutex> lock( mThreadedEventListenerMutex );
+	std::lock_guard lock( mThreadedEventListenerMutex );
 	mThreadedEventListeners.clear();
 }
 
 bool EventManager::triggerThreadedEvent( EventDataRef event )
 {
-	std::lock_guard<std::mutex> lock( mThreadedEventListenerMutex );
+	std::lock_guard lock( mThreadedEventListenerMutex );
 	
 	auto processed = false;
-	const auto found = mThreadedEventListeners.find( event->getTypeId() );
-	if( found != mThreadedEventListeners.end() ) {
+	if( const auto found = mThreadedEventListeners.find( event->getTypeId() ); found != mThreadedEventListeners.end() ) {
 		const auto &eventListenerList = found->second;
 		for( auto &listener : eventListenerList ) {
 			listener( event );
@@ -291,18 +290,17 @@ void EventManager::consumeAfterListeners()
 	
 bool EventManager::update( uint64_t maxMillis )
 {
-	static uint64_t currMs = 0;
-	currMs = (1.0 / 60.0) * 1000;
-	const auto maxMs = maxMillis == EventManager::kINFINITE ? EventManager::kINFINITE : currMs + maxMillis;
+	static uint64_t currentMs = 0;
+	currentMs = (1.0 / 60.0) * 1000;
+	const auto maxMs = maxMillis == EventManager::kINFINITE ? EventManager::kINFINITE : currentMs + maxMillis;
 	
 	mFiringEvent = true;
 
 	const int queueToProcess = mActiveQueue;
 	mActiveQueue = ( mActiveQueue + 1 ) % NUM_QUEUES;
 	mQueues[mActiveQueue].clear();
-	
-	static auto processNotify = false;
-	if( ! processNotify ) {
+
+	if( static auto processNotify = false; ! processNotify ) {
 		LOG_EVENT( "Processing Event Queue " + to_string( queueToProcess ) + "; " + to_string( mQueues[queueToProcess].size() ) + " events to process" );
 		processNotify = true;
 	}
@@ -314,8 +312,7 @@ bool EventManager::update( uint64_t maxMillis )
 		
 		const auto &eventType = event->getTypeId();
 
-		const auto found = mEventListeners.find( eventType );
-		if( found != mEventListeners.end() ) {
+		if( const auto found = mEventListeners.find( eventType ); found != mEventListeners.end() ) {
 			const auto &eventListeners = found->second;
 			LOG_EVENT( "\t\tFound " + to_string( eventListeners.size() ) + " delegates" );
 
@@ -329,8 +326,8 @@ bool EventManager::update( uint64_t maxMillis )
 			}
 		}
 		
-//		currMs = app::App::get()->getElapsedSeconds() * 1000;//Engine::getTickCount();
-		if( maxMillis != EventManager::kINFINITE && currMs >= maxMs ) {
+//		currentMs = app::App::get()->getElapsedSeconds() * 1000;//Engine::getTickCount();
+		if( maxMillis != EventManager::kINFINITE && currentMs >= maxMs ) {
 			LOG_EVENT( "WARNING: Aborting event processing; time ran out" );
 			break;
 		}
