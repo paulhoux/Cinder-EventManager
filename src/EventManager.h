@@ -113,8 +113,7 @@ private:
 	ListenerQueue	mAddAfter,
 					mRemoveAfter;
 	
-	bool			mFiringEvent {},
-					mCleanedUp {};
+	bool			mFiringEvent {};
 };
 
 /// ============================================================================

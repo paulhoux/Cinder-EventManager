@@ -26,7 +26,7 @@ using EventType = uint64_t;
 /// ============================================================================
 
 class EventData {
-public:
+  public:
 	explicit EventData( const float timestamp = 0.0f ) : mTimeStamp( timestamp ), mIsHandled( false ) {}
 	virtual ~EventData() = default;
 

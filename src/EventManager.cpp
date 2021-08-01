@@ -72,8 +72,6 @@ void EventManager::cleanup()
 		std::lock_guard lock( mThreadedEventListenerMutex );
 		mThreadedEventListeners.clear();
 	}
-
-	mCleanedUp = true;
 	
 	CI_LOG_I( ">>>>>>>>>> cleanup" );
 }
