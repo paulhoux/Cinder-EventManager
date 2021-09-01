@@ -81,6 +81,7 @@ bool EventManager::addListener( EventListenerDelegate eventDelegate, EventType t
 	LOG_EVENT( "ADDING delegate function for event type: " + to_string( type ) );
 
 	if( mFiringEvent ) {
+		LOG_EVENT( "WARNING: delegate function will be added after current queue has been processed" );
 		mAddAfter.emplace_back( type, std::move( eventDelegate ) );
 	}
 	else {
@@ -95,9 +96,9 @@ bool EventManager::addListener( EventListenerDelegate eventDelegate, EventType t
 			++listenIt;
 		}
 		eventDelegateList.emplace_back( std::move( eventDelegate ) );
-	}
 
-	LOG_EVENT( "ADDED delegate for event type: " + to_string( type ) );
+		LOG_EVENT( "ADDED delegate for event type: " + to_string( type ) );
+	}
 
 	return true;
 }
@@ -108,6 +109,7 @@ bool EventManager::removeListener( EventListenerDelegate eventDelegate, EventTyp
 	auto success = false;
 	
 	if( mFiringEvent ) {
+		LOG_EVENT( "WARNING: delegate function will be removed after current event has been processed" );
 		mRemoveAfter.emplace_back( type, std::move( eventDelegate ) );
 	}
 	else {
@@ -160,19 +162,10 @@ bool EventManager::queueEvent( EventDataRef event )
 	
 	LOG_EVENT( "QUEUEING event: " + std::string( event->getName() ) );
 
-	if( const auto found = mEventListeners.find( event->getTypeId() ); found != mEventListeners.end() ) {
-		mQueues[mActiveQueue].emplace_back( std::move( event ) );
-		LOG_EVENT( "QUEUED event: " + std::string( mQueues[mActiveQueue].back()->getName() ) );
+	mQueues[mActiveQueue].emplace_back( std::move( event ) );
+	LOG_EVENT( "QUEUED event: " + std::string( mQueues[mActiveQueue].back()->getName() ) );
 
-		return true;
-	}
-
-	if( static auto processNotify = false; ! processNotify ) {
-		LOG_EVENT( "WARNING: Skipping event since there are no delegates to receive it: " + std::string( event->getName() ) );
-		processNotify = true;
-	}
-	
-	return false;
+	return true;
 }
 	
 bool EventManager::abortEvent( EventType type, bool allOfType )
@@ -269,8 +262,8 @@ void EventManager::consumeAfterListeners()
 					  const pair<EventType, EventListenerDelegate> &b ) {
 					  return a.first < b.first;
 				  });
-		for( auto &removeEvent : mAddAfter )
-			addListener( removeEvent.second, removeEvent.first );
+		for( auto &event : mAddAfter )
+			addListener( event.second, event.first );
 		mAddAfter.clear();
 	}
 
@@ -280,8 +273,8 @@ void EventManager::consumeAfterListeners()
 					  const pair<EventType, EventListenerDelegate> &b ) {
 					  return a.first < b.first;
 				  });
-		for( auto &removeEvent : mRemoveAfter )
-			removeListener( removeEvent.second, removeEvent.first );
+		for( auto &event : mRemoveAfter )
+			removeListener( event.second, event.first );
 		mRemoveAfter.clear();
 	}
 }
@@ -292,8 +285,6 @@ bool EventManager::update( uint64_t maxMillis )
 	currentMs = (1.0 / 60.0) * 1000;
 	const auto maxMs = maxMillis == EventManager::kINFINITE ? EventManager::kINFINITE : currentMs + maxMillis;
 	
-	mFiringEvent = true;
-
 	const int queueToProcess = mActiveQueue;
 	mActiveQueue = ( mActiveQueue + 1 ) % NUM_QUEUES;
 	mQueues[mActiveQueue].clear();
@@ -304,6 +295,8 @@ bool EventManager::update( uint64_t maxMillis )
 	}
 	
 	while( ! mQueues[queueToProcess].empty() ) {
+		mFiringEvent = true;
+
 		const auto event = mQueues[queueToProcess].front();
 		mQueues[queueToProcess].pop_front();
 		LOG_EVENT( "\t\tProcessing Event " + std::string( event->getName() ) );
@@ -323,8 +316,11 @@ bool EventManager::update( uint64_t maxMillis )
 				++listIt;
 			}
 		}
-		
-//		currentMs = app::App::get()->getElapsedSeconds() * 1000;//Engine::getTickCount();
+
+		mFiringEvent = false;
+		consumeAfterListeners();
+
+		//		currentMs = app::App::get()->getElapsedSeconds() * 1000;//Engine::getTickCount();
 		if( maxMillis != EventManager::kINFINITE && currentMs >= maxMs ) {
 			LOG_EVENT( "WARNING: Aborting event processing; time ran out" );
 			break;
@@ -339,9 +335,6 @@ bool EventManager::update( uint64_t maxMillis )
 			mQueues[mActiveQueue].emplace_front( std::move( event ) );
 		}
 	}
-	
-	mFiringEvent = false;
-	consumeAfterListeners();
 	
 	return queueFlushed;
 }
