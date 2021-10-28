@@ -49,7 +49,7 @@ EventManagerBase* EventManagerBase::get()
 {
 	return kEventManager;
 }
-	
+
 EventManagerBase::EventManagerBase( std::string name, bool setAsGlobal )
 {
 	if ( setAsGlobal ) {
@@ -60,14 +60,11 @@ EventManagerBase::EventManagerBase( std::string name, bool setAsGlobal )
 		kEventManager = this;
 	}
 }
-	
+
 EventManagerBase::~EventManagerBase()
 {
-	/*if ( kEventManager ) {
-		auto tempManagerForDelete = kEventManager;
+	if( kEventManager == this )
 		kEventManager = nullptr;
-		delete tempManagerForDelete;
-	}*/
 }
 
 /// ============================================================================
